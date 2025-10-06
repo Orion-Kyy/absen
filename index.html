@@ -673,7 +673,26 @@
         </div>
     </div>
 
-    <script>
+    <script type="module">
+        // Import Firebase
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js'
+        import { getFirestore, collection, addDoc, getDocs, query, where, orderBy } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js'
+
+        // Firebase config - PAKAI CONFIG LU
+        const firebaseConfig = {
+            apiKey: "AIzaSyBFJh8628zLUv-DsRhngLyNRbvtU8S9VSY",
+            authDomain: "attendance-2720a.firebaseapp.com",
+            projectId: "attendance-2720a",
+            storageBucket: "attendance-2720a.firebasestorage.app",
+            messagingSenderId: "673644343049",
+            appId: "1:673644343049:web:272d89626e8e7101c36dd8",
+            measurementId: "G-L5GSETGXD8"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
         class AttendanceSystem {
             constructor() {
                 this.DOM = {
@@ -717,7 +736,6 @@
                 this.CHECKIN_DEADLINE = "09:00";
                 this.adminCredentials = { user: "admin", pass: "bmkg2024" };
                 this.state = {
-                    attendanceData: JSON.parse(localStorage.getItem('bmkgAttendance')) || [],
                     selectedOption: null,
                     isAdminLoggedIn: sessionStorage.getItem('adminLoggedIn') === 'true'
                 };
@@ -733,72 +751,60 @@
                 this.updateUserView();
             }
 
-            bindEvents() {
-                // Navigation
-                this.DOM.nav.user.addEventListener('click', () => this.showPage('user'));
-                this.DOM.nav.admin.addEventListener('click', () => this.showPage(this.state.isAdminLoggedIn ? 'admin' : 'adminLogin'));
-
-                // User form
-                this.DOM.options.forEach(option => {
-                    option.addEventListener('click', () => {
-                        this.selectOption(option);
+            // FIREBASE FUNCTIONS
+            async saveAttendance(record) {
+                try {
+                    await addDoc(collection(db, "attendance"), {
+                        ...record,
+                        createdAt: new Date()
                     });
-                });
-
-                this.DOM.form.addEventListener('submit', (e) => {
-                    e.preventDefault();
-                    this.handleSubmit();
-                });
-
-                // Admin
-                this.DOM.adminLogin.form.addEventListener('submit', (e) => {
-                    e.preventDefault();
-                    this.handleAdminLogin();
-                });
-
-                this.DOM.adminLogin.logout.addEventListener('click', () => {
-                    this.handleAdminLogout();
-                });
-            }
-
-            showPage(pageKey) {
-                Object.values(this.DOM.pages).forEach(p => p.classList.remove('active'));
-                this.DOM.pages[pageKey].classList.add('active');
-
-                this.DOM.nav.user.classList.toggle('active', pageKey === 'user');
-                this.DOM.nav.admin.classList.toggle('active', ['admin', 'adminLogin'].includes(pageKey));
-
-                if (pageKey === 'admin') this.updateAdminView();
-                if (pageKey === 'user') this.updateUserView();
-            }
-
-            updateDateTime() {
-                const now = new Date();
-                this.DOM.currentTime.textContent = now.toLocaleTimeString('id-ID').replace(/\./g, ':');
-                this.DOM.currentDate.textContent = now.toLocaleDateString('id-ID', {
-                    weekday: 'long',
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric'
-                });
-            }
-
-            selectOption(option) {
-                this.DOM.options.forEach(opt => opt.classList.remove('selected'));
-                option.classList.add('selected');
-                this.state.selectedOption = option.dataset.value;
-                this.DOM.statusInput.value = this.state.selectedOption;
-                
-                if (this.state.selectedOption === 'izin' || this.state.selectedOption === 'sakit') {
-                    this.DOM.leaveForm.style.display = 'block';
-                    this.DOM.leaveNotes.required = true;
-                } else {
-                    this.DOM.leaveForm.style.display = 'none';
-                    this.DOM.leaveNotes.required = false;
+                    return true;
+                } catch (error) {
+                    console.error("Error saving attendance:", error);
+                    return false;
                 }
             }
 
-            handleSubmit() {
+            async getTodayAttendance() {
+                try {
+                    const today = this.getTodayString();
+                    const q = query(
+                        collection(db, "attendance"), 
+                        where("date", "==", today),
+                        orderBy("createdAt", "desc")
+                    );
+                    const querySnapshot = await getDocs(q);
+                    return querySnapshot.docs.map(doc => doc.data());
+                } catch (error) {
+                    console.error("Error getting attendance:", error);
+                    return [];
+                }
+            }
+
+            async getAllAttendance() {
+                try {
+                    const q = query(collection(db, "attendance"), orderBy("createdAt", "desc"));
+                    const querySnapshot = await getDocs(q);
+                    return querySnapshot.docs.map(doc => doc.data());
+                } catch (error) {
+                    console.error("Error getting all attendance:", error);
+                    return [];
+                }
+            }
+
+            async getUniqueInterns() {
+                try {
+                    const allData = await this.getAllAttendance();
+                    const uniqueNIMs = [...new Set(allData.map(item => item.nim))];
+                    return uniqueNIMs;
+                } catch (error) {
+                    console.error("Error getting unique interns:", error);
+                    return [];
+                }
+            }
+
+            // MODIFIED FUNCTIONS
+            async handleSubmit() {
                 if (!this.DOM.name.value.trim() || !this.DOM.nim.value.trim() || !this.state.selectedOption) {
                     this.showMessage('Semua field wajib diisi!', 'error');
                     return;
@@ -811,8 +817,9 @@
                 }
 
                 const today = this.getTodayString();
-                const existingRecord = this.state.attendanceData.find(record => 
-                    record.nim === this.DOM.nim.value.trim() && record.date === today
+                const todayRecords = await this.getTodayAttendance();
+                const existingRecord = todayRecords.find(record => 
+                    record.nim === this.DOM.nim.value.trim()
                 );
 
                 if (existingRecord) {
@@ -844,7 +851,6 @@
                 }
 
                 const newRecord = {
-                    id: Date.now(),
                     name: this.DOM.name.value.trim(),
                     nim: this.DOM.nim.value.trim(),
                     status: this.state.selectedOption,
@@ -855,42 +861,19 @@
                     timestamp: now.toISOString()
                 };
 
-                this.state.attendanceData.push(newRecord);
-                localStorage.setItem('bmkgAttendance', JSON.stringify(this.state.attendanceData));
+                const success = await this.saveAttendance(newRecord);
                 
-                this.showMessage(`Absensi berhasil! ${timeStatus === 'tepat-waktu' ? 'Tepat waktu!' : `Telat ${lateMinutes} menit!`}`, 'success');
-                this.resetForm();
-                this.renderHistory();
+                if (success) {
+                    this.showMessage(`Absensi berhasil! ${timeStatus === 'tepat-waktu' ? 'Tepat waktu!' : `Telat ${lateMinutes} menit!`}`, 'success');
+                    this.resetForm();
+                    this.renderHistory();
+                } else {
+                    this.showMessage('Gagal menyimpan absensi! Coba lagi.', 'error');
+                }
             }
 
-            showMessage(message, type) {
-                this.DOM.statusMessage.textContent = message;
-                this.DOM.statusMessage.className = `status ${type}`;
-                this.DOM.statusMessage.style.display = 'block';
-                
-                setTimeout(() => {
-                    this.DOM.statusMessage.style.display = 'none';
-                }, 3000);
-            }
-
-            resetForm() {
-                this.DOM.form.reset();
-                this.DOM.options.forEach(opt => opt.classList.remove('selected'));
-                this.state.selectedOption = null;
-                this.DOM.leaveForm.style.display = 'none';
-            }
-
-            getTodayString() {
-                return new Date().toLocaleDateString('id-ID', {
-                    day: '2-digit',
-                    month: '2-digit',
-                    year: 'numeric'
-                });
-            }
-
-            renderHistory() {
-                const today = this.getTodayString();
-                const todayRecords = this.state.attendanceData.filter(record => record.date === today);
+            async renderHistory() {
+                const todayRecords = await this.getTodayAttendance();
                 
                 if (todayRecords.length === 0) {
                     this.DOM.historyList.innerHTML = '<p class="no-history">Belum ada absensi hari ini.</p>';
@@ -920,7 +903,155 @@
                 this.DOM.historyList.innerHTML = html;
             }
 
-            // Admin Functions
+            async updateAdminStats() {
+                const todayRecords = await this.getTodayAttendance();
+                const uniqueNIMs = await this.getUniqueInterns();
+                
+                let present = 0, late = 0, leave = 0;
+                const attendedNIMs = new Set();
+                
+                todayRecords.forEach(record => {
+                    if (!attendedNIMs.has(record.nim)) {
+                        attendedNIMs.add(record.nim);
+                        
+                        if (record.status === 'hadir') {
+                            present++;
+                            if (record.timeStatus.includes('terlambat')) late++;
+                        } else if (record.status === 'izin' || record.status === 'sakit') {
+                            leave++;
+                        }
+                    }
+                });
+
+                this.DOM.adminStats.present.textContent = present;
+                this.DOM.adminStats.late.textContent = late;
+                this.DOM.adminStats.leave.textContent = leave;
+                this.DOM.adminStats.total.textContent = uniqueNIMs.length;
+            }
+
+            async updateAdminTable() {
+                const allData = await this.getAllAttendance();
+
+                if (allData.length === 0) {
+                    this.DOM.adminTable.innerHTML = '<p class="no-history">Tidak ada data untuk ditampilkan.</p>';
+                    return;
+                }
+
+                this.DOM.adminTable.innerHTML = allData.map(record => `
+                    <div class="table-row">
+                        <div data-label="Nama">${record.name}</div>
+                        <div data-label="Tanggal">${record.date}</div>
+                        <div data-label="Waktu">${record.time}</div>
+                        <div data-label="Status">
+                            <span class="status-badge ${record.status}">
+                                ${record.status}${record.timeStatus && record.timeStatus !== 'tepat-waktu' ? ` (${record.timeStatus})` : ''}
+                            </span>
+                        </div>
+                        <div data-label="Keterangan">${record.notes || '-'}</div>
+                    </div>
+                `).join('');
+            }
+
+            showPage(pageKey) {
+                Object.values(this.DOM.pages).forEach(p => p.classList.remove('active'));
+                this.DOM.pages[pageKey].classList.add('active');
+
+                this.DOM.nav.user.classList.toggle('active', pageKey === 'user');
+                this.DOM.nav.admin.classList.toggle('active', ['admin', 'adminLogin'].includes(pageKey));
+
+                if (pageKey === 'admin') this.updateAdminView();
+                if (pageKey === 'user') this.updateUserView();
+            }
+
+            updateUserView() {
+                this.renderHistory();
+            }
+
+            async updateAdminView() {
+                if (!this.state.isAdminLoggedIn) return;
+                await this.updateAdminStats();
+                await this.updateAdminTable();
+            }
+
+            selectOption(option) {
+                this.DOM.options.forEach(opt => opt.classList.remove('selected'));
+                option.classList.add('selected');
+                this.state.selectedOption = option.dataset.value;
+                this.DOM.statusInput.value = this.state.selectedOption;
+                
+                if (this.state.selectedOption === 'izin' || this.state.selectedOption === 'sakit') {
+                    this.DOM.leaveForm.style.display = 'block';
+                    this.DOM.leaveNotes.required = true;
+                } else {
+                    this.DOM.leaveForm.style.display = 'none';
+                    this.DOM.leaveNotes.required = false;
+                }
+            }
+
+            showMessage(message, type) {
+                this.DOM.statusMessage.textContent = message;
+                this.DOM.statusMessage.className = `status ${type}`;
+                this.DOM.statusMessage.style.display = 'block';
+                
+                setTimeout(() => {
+                    this.DOM.statusMessage.style.display = 'none';
+                }, 3000);
+            }
+
+            resetForm() {
+                this.DOM.form.reset();
+                this.DOM.options.forEach(opt => opt.classList.remove('selected'));
+                this.state.selectedOption = null;
+                this.DOM.leaveForm.style.display = 'none';
+            }
+
+            getTodayString() {
+                return new Date().toLocaleDateString('id-ID', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric'
+                });
+            }
+
+            updateDateTime() {
+                const now = new Date();
+                this.DOM.currentTime.textContent = now.toLocaleTimeString('id-ID').replace(/\./g, ':');
+                this.DOM.currentDate.textContent = now.toLocaleDateString('id-ID', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                });
+            }
+
+            bindEvents() {
+                // Navigation
+                this.DOM.nav.user.addEventListener('click', () => this.showPage('user'));
+                this.DOM.nav.admin.addEventListener('click', () => this.showPage(this.state.isAdminLoggedIn ? 'admin' : 'adminLogin'));
+
+                // User form
+                this.DOM.options.forEach(option => {
+                    option.addEventListener('click', () => {
+                        this.selectOption(option);
+                    });
+                });
+
+                this.DOM.form.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    this.handleSubmit();
+                });
+
+                // Admin
+                this.DOM.adminLogin.form.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    this.handleAdminLogin();
+                });
+
+                this.DOM.adminLogin.logout.addEventListener('click', () => {
+                    this.handleAdminLogout();
+                });
+            }
+
             handleAdminLogin() {
                 const { user, pass, status } = this.DOM.adminLogin;
                 if (user.value === this.adminCredentials.user && pass.value === this.adminCredentials.pass) {
@@ -941,63 +1072,6 @@
                 this.state.isAdminLoggedIn = false;
                 sessionStorage.removeItem('adminLoggedIn');
                 this.showPage('user');
-            }
-
-            updateAdminView() {
-                if (!this.state.isAdminLoggedIn) return;
-                this.updateAdminStats();
-                this.updateAdminTable();
-            }
-
-            updateAdminStats() {
-                const today = this.getTodayString();
-                const todayRecords = this.state.attendanceData.filter(e => e.date === today);
-                const uniqueNIMsToday = [...new Set(todayRecords.map(e => e.nim))];
-
-                let present = 0, late = 0, leave = 0;
-                uniqueNIMsToday.forEach(nim => {
-                    const records = todayRecords.filter(e => e.nim === nim);
-                    const hasAttendance = records.some(e => e.status === 'hadir');
-                    const hasLeave = records.some(e => e.status === 'izin' || e.status === 'sakit');
-                    const isLate = records.some(e => e.timeStatus.includes('terlambat'));
-
-                    if (hasAttendance) {
-                        present++;
-                        if (isLate) late++;
-                    } else if (hasLeave) {
-                        leave++;
-                    }
-                });
-
-                this.DOM.adminStats.present.textContent = present;
-                this.DOM.adminStats.late.textContent = late;
-                this.DOM.adminStats.leave.textContent = leave;
-                this.DOM.adminStats.total.textContent = [...new Set(this.state.attendanceData.map(e => e.nim))].length;
-            }
-
-            updateAdminTable() {
-                const sortedData = [...this.state.attendanceData].sort((a, b) => 
-                    new Date(b.timestamp) - new Date(a.timestamp)
-                );
-
-                if (sortedData.length === 0) {
-                    this.DOM.adminTable.innerHTML = '<p class="no-history">Tidak ada data untuk ditampilkan.</p>';
-                    return;
-                }
-
-                this.DOM.adminTable.innerHTML = sortedData.map(record => `
-                    <div class="table-row">
-                        <div data-label="Nama">${record.name}</div>
-                        <div data-label="Tanggal">${record.date}</div>
-                        <div data-label="Waktu">${record.time}</div>
-                        <div data-label="Status">
-                            <span class="status-badge ${record.status}">
-                                ${record.status}${record.timeStatus && record.timeStatus !== 'tepat-waktu' ? ` (${record.timeStatus})` : ''}
-                            </span>
-                        </div>
-                        <div data-label="Keterangan">${record.notes || '-'}</div>
-                    </div>
-                `).join('');
             }
         }
 
