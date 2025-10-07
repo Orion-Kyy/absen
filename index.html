@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistem Absensi Magang BMKG</title>
     <style>
+        /* CSS sebelumnya tetap sama */
         :root {
             --primary-light: #667eea;
             --primary-dark: #764ba2;
@@ -447,7 +448,7 @@
 
         .table-row {
             display: grid;
-            grid-template-columns: 2fr 1.5fr 1fr 1fr 1.5fr;
+            grid-template-columns: 2fr 1.5fr 1fr 1fr 1.5fr 1fr;
             gap: 15px;
             padding: 15px 20px;
             border-bottom: 1px solid #f0f0f0;
@@ -502,6 +503,122 @@
             margin: 50px auto;
         }
 
+        /* PERBAIKAN: Modal Styles yang benar */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 30px;
+            border-radius: 20px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+            position: relative;
+            animation: modalSlideIn 0.3s ease;
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .close {
+            position: absolute;
+            right: 20px;
+            top: 15px;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            color: var(--text-light);
+            transition: color 0.3s ease;
+        }
+
+        .close:hover {
+            color: var(--red);
+        }
+
+        .modal-title {
+            margin-bottom: 20px;
+            font-size: 24px;
+            font-weight: 600;
+            color: var(--text-dark);
+        }
+
+        /* Action Buttons */
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 10px;
+        }
+
+        .btn-edit {
+            background: linear-gradient(135deg, var(--orange), #ff7f50);
+            padding: 8px 15px;
+            font-size: 12px;
+        }
+
+        .btn-delete {
+            background: linear-gradient(135deg, var(--red), #ee5a24);
+            padding: 8px 15px;
+            font-size: 12px;
+        }
+
+        .btn-cancel {
+            background: linear-gradient(135deg, #95a5a6, #7f8c8d);
+            padding: 12px 20px;
+            font-size: 14px;
+        }
+
+        /* Loading Spinner */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Search and Filter */
+        .admin-controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .search-box {
+            flex: 1;
+            min-width: 250px;
+        }
+
+        .filter-select {
+            min-width: 150px;
+        }
+
+        /* Responsive adjustments */
         @media (max-width: 768px) {
             body {
                 padding: 10px;
@@ -527,6 +644,17 @@
             }
             .table-row.header {
                 display: none;
+            }
+            .action-buttons {
+                justify-content: flex-start;
+                margin-top: 10px;
+            }
+            .admin-controls {
+                flex-direction: column;
+            }
+            .modal-content {
+                margin: 10% auto;
+                padding: 20px;
             }
         }
     </style>
@@ -616,11 +744,11 @@
                 <form id="admin-login-form">
                     <div class="form-group">
                         <label for="admin-username">Username:</label>
-                        <input type="text" id="admin-username" value="admin">
+                        <input type="text" id="admin-username" value="">
                     </div>
                     <div class="form-group">
                         <label for="admin-password">Password:</label>
-                        <input type="password" id="admin-password" value="bmkg2024">
+                        <input type="password" id="admin-password" value="">
                     </div>
                     <div id="login-status" class="status" style="display: none"></div>
                     <button type="submit" class="btn btn-submit">
@@ -635,6 +763,26 @@
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; flex-wrap: wrap; gap: 15px;">
                 <h2>🎯 Panel Admin</h2>
                 <button class="btn btn-danger" id="admin-logout">Logout</button>
+            </div>
+            
+            <!-- Controls Bar -->
+            <div class="admin-controls">
+                <div class="form-group search-box">
+                    <input type="text" id="search-input" placeholder="🔍 Cari nama atau NIM...">
+                </div>
+                <div class="form-group filter-select">
+                    <select id="status-filter">
+                        <option value="">Semua Status</option>
+                        <option value="hadir">Hadir</option>
+                        <option value="izin">Izin</option>
+                        <option value="sakit">Sakit</option>
+                    </select>
+                </div>
+                <div class="form-group filter-select">
+                    <select id="date-filter">
+                        <option value="">Semua Tanggal</option>
+                    </select>
+                </div>
             </div>
             
             <div class="admin-stats">
@@ -665,6 +813,7 @@
                             <div>Waktu</div>
                             <div>Status</div>
                             <div>Keterangan</div>
+                            <div>Aksi</div>
                         </div>
                     </div>
                     <div class="table-content" id="admin-table-content"></div>
@@ -673,12 +822,72 @@
         </div>
     </div>
 
+    <!-- Modal Edit -->
+    <div id="edit-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h3 class="modal-title">✏️ Edit Data Absensi</h3>
+            <form id="edit-form">
+                <input type="hidden" id="edit-id">
+                <div class="form-group">
+                    <label for="edit-name">Nama Lengkap:</label>
+                    <input type="text" id="edit-name" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit-nim">NIM/ID:</label>
+                    <input type="text" id="edit-nim" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit-status">Status Kehadiran:</label>
+                    <select id="edit-status" required>
+                        <option value="hadir">Hadir</option>
+                        <option value="izin">Izin</option>
+                        <option value="sakit">Sakit</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="edit-date">Tanggal:</label>
+                    <input type="date" id="edit-date" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit-time">Waktu:</label>
+                    <input type="time" id="edit-time" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit-notes">Keterangan:</label>
+                    <textarea id="edit-notes" rows="3" placeholder="Keterangan..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="edit-late-minutes">Menit Keterlambatan:</label>
+                    <input type="number" id="edit-late-minutes" min="0" value="0">
+                </div>
+                <div class="action-buttons">
+                    <button type="button" class="btn btn-cancel" id="cancel-edit">Batal</button>
+                    <button type="submit" class="btn btn-submit" id="save-edit">
+                        💾 Simpan Perubahan
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script type="module">
         // Import Firebase
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js'
-        import { getFirestore, collection, addDoc, getDocs, query, where, orderBy } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js'
+        import { 
+            getFirestore, 
+            collection, 
+            addDoc, 
+            getDocs, 
+            updateDoc,
+            deleteDoc,
+            doc,
+            query, 
+            where, 
+            orderBy 
+        } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js'
 
-        // Firebase config - PAKAI CONFIG LU
+        // Firebase config
         const firebaseConfig = {
             apiKey: "AIzaSyBFJh8628zLUv-DsRhngLyNRbvtU8S9VSY",
             authDomain: "attendance-2720a.firebaseapp.com",
@@ -730,14 +939,33 @@
                         leave: document.getElementById('leave-today'),
                         total: document.getElementById('total-interns')
                     },
-                    adminTable: document.getElementById('admin-table-content')
+                    adminTable: document.getElementById('admin-table-content'),
+                    // New DOM elements for admin features
+                    searchInput: document.getElementById('search-input'),
+                    statusFilter: document.getElementById('status-filter'),
+                    dateFilter: document.getElementById('date-filter'),
+                    editModal: document.getElementById('edit-modal'),
+                    editForm: document.getElementById('edit-form'),
+                    editId: document.getElementById('edit-id'),
+                    editName: document.getElementById('edit-name'),
+                    editNim: document.getElementById('edit-nim'),
+                    editStatus: document.getElementById('edit-status'),
+                    editDate: document.getElementById('edit-date'),
+                    editTime: document.getElementById('edit-time'),
+                    editNotes: document.getElementById('edit-notes'),
+                    editLateMinutes: document.getElementById('edit-late-minutes'),
+                    cancelEdit: document.getElementById('cancel-edit'),
+                    saveEdit: document.getElementById('save-edit'),
+                    closeModal: document.querySelector('.close')
                 };
                 
                 this.CHECKIN_DEADLINE = "07:30";
                 this.adminCredentials = { user: "admin", pass: "bmkg2024" };
                 this.state = {
                     selectedOption: null,
-                    isAdminLoggedIn: sessionStorage.getItem('adminLoggedIn') === 'true'
+                    isAdminLoggedIn: sessionStorage.getItem('adminLoggedIn') === 'true',
+                    allAttendanceData: [],
+                    filteredData: []
                 };
                 
                 this.init();
@@ -765,6 +993,28 @@
                 }
             }
 
+            async updateAttendance(id, data) {
+                try {
+                    const docRef = doc(db, "attendance", id);
+                    await updateDoc(docRef, data);
+                    return true;
+                } catch (error) {
+                    console.error("Error updating attendance:", error);
+                    return false;
+                }
+            }
+
+            async deleteAttendance(id) {
+                try {
+                    const docRef = doc(db, "attendance", id);
+                    await deleteDoc(docRef);
+                    return true;
+                } catch (error) {
+                    console.error("Error deleting attendance:", error);
+                    return false;
+                }
+            }
+
             async getTodayAttendance() {
                 try {
                     const today = this.getTodayString();
@@ -774,7 +1024,10 @@
                         orderBy("createdAt", "desc")
                     );
                     const querySnapshot = await getDocs(q);
-                    return querySnapshot.docs.map(doc => doc.data());
+                    return querySnapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }));
                 } catch (error) {
                     console.error("Error getting attendance:", error);
                     return [];
@@ -785,7 +1038,13 @@
                 try {
                     const q = query(collection(db, "attendance"), orderBy("createdAt", "desc"));
                     const querySnapshot = await getDocs(q);
-                    return querySnapshot.docs.map(doc => doc.data());
+                    const data = querySnapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }));
+                    this.state.allAttendanceData = data;
+                    this.state.filteredData = data;
+                    return data;
                 } catch (error) {
                     console.error("Error getting all attendance:", error);
                     return [];
@@ -803,10 +1062,176 @@
                 }
             }
 
-            // MODIFIED FUNCTIONS
+            // NEW: Filter and Search Functions
+            filterData() {
+                const searchTerm = this.DOM.searchInput.value.toLowerCase();
+                const statusFilter = this.DOM.statusFilter.value;
+                const dateFilter = this.DOM.dateFilter.value;
+
+                this.state.filteredData = this.state.allAttendanceData.filter(item => {
+                    const matchesSearch = 
+                        item.name.toLowerCase().includes(searchTerm) ||
+                        item.nim.toLowerCase().includes(searchTerm);
+                    
+                    const matchesStatus = !statusFilter || item.status === statusFilter;
+                    const matchesDate = !dateFilter || item.date === dateFilter;
+
+                    return matchesSearch && matchesStatus && matchesDate;
+                });
+
+                this.updateAdminTable();
+            }
+
+            // NEW: Populate date filter
+            populateDateFilter() {
+                const uniqueDates = [...new Set(this.state.allAttendanceData.map(item => item.date))].sort().reverse();
+                this.DOM.dateFilter.innerHTML = '<option value="">Semua Tanggal</option>';
+                uniqueDates.forEach(date => {
+                    const option = document.createElement('option');
+                    option.value = date;
+                    option.textContent = date;
+                    this.DOM.dateFilter.appendChild(option);
+                });
+            }
+
+            // NEW: Edit and Delete Functions
+            openEditModal(attendanceData) {
+                this.DOM.editId.value = attendanceData.id;
+                this.DOM.editName.value = attendanceData.name;
+                this.DOM.editNim.value = attendanceData.nim;
+                this.DOM.editStatus.value = attendanceData.status;
+                this.DOM.editDate.value = this.formatDateForInput(attendanceData.date);
+                this.DOM.editTime.value = attendanceData.time;
+                this.DOM.editNotes.value = attendanceData.notes || '';
+                this.DOM.editLateMinutes.value = attendanceData.lateMinutes || 0;
+                
+                this.DOM.editModal.style.display = 'block';
+            }
+
+            formatDateForInput(dateString) {
+                // Convert from DD/MM/YYYY to YYYY-MM-DD
+                const [day, month, year] = dateString.split('/');
+                return `${year}-${month}-${day}`;
+            }
+
+            formatDateForDisplay(dateString) {
+                // Convert from YYYY-MM-DD to DD/MM/YYYY
+                const [year, month, day] = dateString.split('-');
+                return `${day}/${month}/${year}`;
+            }
+
+            async handleEditSubmit(e) {
+                e.preventDefault();
+                
+                const id = this.DOM.editId.value;
+                const updatedData = {
+                    name: this.DOM.editName.value.trim(),
+                    nim: this.DOM.editNim.value.trim(),
+                    status: this.DOM.editStatus.value,
+                    date: this.formatDateForDisplay(this.DOM.editDate.value),
+                    time: this.DOM.editTime.value,
+                    notes: this.DOM.editNotes.value.trim(),
+                    lateMinutes: parseInt(this.DOM.editLateMinutes.value) || 0,
+                    timeStatus: this.DOM.editStatus.value === 'hadir' && parseInt(this.DOM.editLateMinutes.value) > 0 
+                        ? `terlambat ${this.DOM.editLateMinutes.value} menit` 
+                        : 'tepat-waktu',
+                    updatedAt: new Date()
+                };
+
+                this.DOM.saveEdit.disabled = true;
+                this.DOM.saveEdit.innerHTML = '<div class="loading"></div> Menyimpan...';
+
+                const success = await this.updateAttendance(id, updatedData);
+                
+                if (success) {
+                    this.showAdminMessage('Data berhasil diperbarui!', 'success');
+                    this.closeEditModal();
+                    await this.updateAdminView();
+                } else {
+                    this.showAdminMessage('Gagal memperbarui data!', 'error');
+                }
+
+                this.DOM.saveEdit.disabled = false;
+                this.DOM.saveEdit.innerHTML = '💾 Simpan Perubahan';
+            }
+
+            async handleDelete(id, name) {
+                if (confirm(`Apakah Anda yakin ingin menghapus data absensi ${name}?`)) {
+                    const success = await this.deleteAttendance(id);
+                    
+                    if (success) {
+                        this.showAdminMessage('Data berhasil dihapus!', 'success');
+                        await this.updateAdminView();
+                    } else {
+                        this.showAdminMessage('Gagal menghapus data!', 'error');
+                    }
+                }
+            }
+
+            closeEditModal() {
+                this.DOM.editModal.style.display = 'none';
+                this.DOM.editForm.reset();
+            }
+
+            showAdminMessage(message, type) {
+                // Create temporary message display
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `status ${type}`;
+                messageDiv.textContent = message;
+                messageDiv.style.marginBottom = '20px';
+                
+                const adminPage = this.DOM.pages.admin;
+                const firstChild = adminPage.firstChild;
+                adminPage.insertBefore(messageDiv, firstChild);
+                
+                setTimeout(() => {
+                    messageDiv.remove();
+                }, 3000);
+            }
+
+            // Existing functions...
+            getCurrentTime24() {
+                const now = new Date();
+                const hours = String(now.getHours()).padStart(2, '0');
+                const minutes = String(now.getMinutes()).padStart(2, '0');
+                return `${hours}:${minutes}`;
+            }
+
+            calculateLateness(currentTime) {
+                const [currentHour, currentMinute] = currentTime.split(':').map(Number);
+                const [deadlineHour, deadlineMinute] = this.CHECKIN_DEADLINE.split(':').map(Number);
+                
+                const totalCurrent = (currentHour * 60) + currentMinute;
+                const totalDeadline = (deadlineHour * 60) + deadlineMinute;
+                
+                if (totalCurrent > totalDeadline) {
+                    const lateMinutes = totalCurrent - totalDeadline;
+                    return {
+                        isLate: true,
+                        minutes: lateMinutes,
+                        status: `terlambat ${lateMinutes} menit`
+                    };
+                }
+                
+                return {
+                    isLate: false,
+                    minutes: 0,
+                    status: 'tepat-waktu'
+                };
+            }
+
             async handleSubmit() {
-                if (!this.DOM.name.value.trim() || !this.DOM.nim.value.trim() || !this.state.selectedOption) {
-                    this.showMessage('Semua field wajib diisi!', 'error');
+                const name = this.DOM.name.value.trim();
+                const nim = this.DOM.nim.value.trim();
+                
+                const validation = this.validateInput(name, nim);
+                if (!validation.valid) {
+                    this.showMessage(validation.message, 'error');
+                    return;
+                }
+
+                if (!this.state.selectedOption) {
+                    this.showMessage('Pilih status kehadiran!', 'error');
                     return;
                 }
 
@@ -819,7 +1244,7 @@
                 const today = this.getTodayString();
                 const todayRecords = await this.getTodayAttendance();
                 const existingRecord = todayRecords.find(record => 
-                    record.nim === this.DOM.nim.value.trim()
+                    record.nim === nim
                 );
 
                 if (existingRecord) {
@@ -828,48 +1253,66 @@
                 }
 
                 const now = new Date();
-                const currentTime = now.toLocaleTimeString('id-ID', { 
-                    hour: '2-digit', 
-                    minute: '2-digit' 
-                });
+                const currentTime = this.getCurrentTime24();
                 
-                // Hitung keterlambatan
-                let lateMinutes = 0;
                 let timeStatus = 'tepat-waktu';
+                let lateMinutes = 0;
                 
                 if (this.state.selectedOption === 'hadir') {
-                    const [currentHour, currentMinute] = currentTime.split(':').map(Number);
-                    const [deadlineHour, deadlineMinute] = this.CHECKIN_DEADLINE.split(':').map(Number);
-                    
-                    const totalCurrent = (currentHour * 60) + currentMinute;
-                    const totalDeadline = (deadlineHour * 60) + deadlineMinute;
-                    
-                    if (totalCurrent > totalDeadline) {
-                        lateMinutes = totalCurrent - totalDeadline;
-                        timeStatus = `terlambat ${lateMinutes} menit`;
-                    }
+                    const lateness = this.calculateLateness(currentTime);
+                    timeStatus = lateness.status;
+                    lateMinutes = lateness.minutes;
                 }
 
                 const newRecord = {
-                    name: this.DOM.name.value.trim(),
-                    nim: this.DOM.nim.value.trim(),
+                    name: name,
+                    nim: nim,
                     status: this.state.selectedOption,
                     timeStatus: timeStatus,
                     date: today,
                     time: currentTime,
                     notes: this.DOM.leaveNotes.value.trim(),
-                    timestamp: now.toISOString()
+                    timestamp: now.toISOString(),
+                    lateMinutes: lateMinutes
                 };
+
+                this.DOM.submitBtn.disabled = true;
+                this.DOM.submitBtn.textContent = 'Menyimpan...';
 
                 const success = await this.saveAttendance(newRecord);
                 
                 if (success) {
-                    this.showMessage(`Absensi berhasil! ${timeStatus === 'tepat-waktu' ? 'Tepat waktu!' : `Telat ${lateMinutes} menit!`}`, 'success');
+                    let message = `Absensi berhasil! `;
+                    if (this.state.selectedOption === 'hadir') {
+                        message += timeStatus === 'tepat-waktu' ? 'Tepat waktu!' : `Telat ${lateMinutes} menit!`;
+                    } else {
+                        message += `Status: ${this.state.selectedOption}`;
+                    }
+                    this.showMessage(message, 'success');
                     this.resetForm();
                     this.renderHistory();
                 } else {
                     this.showMessage('Gagal menyimpan absensi! Coba lagi.', 'error');
                 }
+                
+                this.DOM.submitBtn.disabled = false;
+                this.DOM.submitBtn.textContent = 'Kirim Absensi';
+            }
+
+            validateInput(name, nim) {
+                if (!name.trim() || !nim.trim()) {
+                    return { valid: false, message: 'Nama dan NIM/ID wajib diisi!' };
+                }
+                
+                if (name.trim().length < 3) {
+                    return { valid: false, message: 'Nama harus minimal 3 karakter!' };
+                }
+                
+                if (nim.trim().length < 5) {
+                    return { valid: false, message: 'NIM/ID harus minimal 5 karakter!' };
+                }
+                
+                return { valid: true };
             }
 
             async renderHistory() {
@@ -916,7 +1359,7 @@
                         
                         if (record.status === 'hadir') {
                             present++;
-                            if (record.timeStatus.includes('terlambat')) late++;
+                            if (record.lateMinutes > 0) late++;
                         } else if (record.status === 'izin' || record.status === 'sakit') {
                             leave++;
                         }
@@ -930,14 +1373,14 @@
             }
 
             async updateAdminTable() {
-                const allData = await this.getAllAttendance();
+                const dataToShow = this.state.filteredData.length > 0 ? this.state.filteredData : this.state.allAttendanceData;
 
-                if (allData.length === 0) {
+                if (dataToShow.length === 0) {
                     this.DOM.adminTable.innerHTML = '<p class="no-history">Tidak ada data untuk ditampilkan.</p>';
                     return;
                 }
 
-                this.DOM.adminTable.innerHTML = allData.map(record => `
+                this.DOM.adminTable.innerHTML = dataToShow.map(record => `
                     <div class="table-row">
                         <div data-label="Nama">${record.name}</div>
                         <div data-label="Tanggal">${record.date}</div>
@@ -948,8 +1391,35 @@
                             </span>
                         </div>
                         <div data-label="Keterangan">${record.notes || '-'}</div>
+                        <div data-label="Aksi">
+                            <div class="action-buttons">
+                                <button class="btn btn-edit" data-id="${record.id}">
+                                    ✏️ Edit
+                                </button>
+                                <button class="btn btn-delete" data-id="${record.id}" data-name="${record.name}">
+                                    🗑️ Hapus
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 `).join('');
+
+                // Add event listeners to action buttons
+                this.DOM.adminTable.querySelectorAll('.btn-edit').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const id = btn.dataset.id;
+                        const record = dataToShow.find(r => r.id === id);
+                        if (record) this.openEditModal(record);
+                    });
+                });
+
+                this.DOM.adminTable.querySelectorAll('.btn-delete').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const id = btn.dataset.id;
+                        const name = btn.dataset.name;
+                        this.handleDelete(id, name);
+                    });
+                });
             }
 
             showPage(pageKey) {
@@ -969,8 +1439,10 @@
 
             async updateAdminView() {
                 if (!this.state.isAdminLoggedIn) return;
+                await this.getAllAttendance();
                 await this.updateAdminStats();
-                await this.updateAdminTable();
+                this.populateDateFilter();
+                this.updateAdminTable();
             }
 
             selectOption(option) {
@@ -1015,7 +1487,8 @@
 
             updateDateTime() {
                 const now = new Date();
-                this.DOM.currentTime.textContent = now.toLocaleTimeString('id-ID').replace(/\./g, ':');
+                const time24 = this.getCurrentTime24() + ':' + String(now.getSeconds()).padStart(2, '0');
+                this.DOM.currentTime.textContent = time24;
                 this.DOM.currentDate.textContent = now.toLocaleDateString('id-ID', {
                     weekday: 'long',
                     year: 'numeric',
@@ -1050,10 +1523,38 @@
                 this.DOM.adminLogin.logout.addEventListener('click', () => {
                     this.handleAdminLogout();
                 });
+
+                // NEW: Admin controls
+                this.DOM.searchInput.addEventListener('input', () => this.filterData());
+                this.DOM.statusFilter.addEventListener('change', () => this.filterData());
+                this.DOM.dateFilter.addEventListener('change', () => this.filterData());
+
+                // NEW: Modal events
+                this.DOM.editForm.addEventListener('submit', (e) => this.handleEditSubmit(e));
+                this.DOM.cancelEdit.addEventListener('click', () => this.closeEditModal());
+                this.DOM.closeModal.addEventListener('click', () => this.closeEditModal());
+                
+                // Close modal when clicking outside
+                window.addEventListener('click', (e) => {
+                    if (e.target === this.DOM.editModal) {
+                        this.closeEditModal();
+                    }
+                });
             }
 
             handleAdminLogin() {
                 const { user, pass, status } = this.DOM.adminLogin;
+                
+                if (!user.value.trim() || !pass.value.trim()) {
+                    status.textContent = 'Username dan password wajib diisi!';
+                    status.className = 'status error';
+                    status.style.display = 'block';
+                    setTimeout(() => {
+                        status.style.display = 'none';
+                    }, 3000);
+                    return;
+                }
+                
                 if (user.value === this.adminCredentials.user && pass.value === this.adminCredentials.pass) {
                     this.state.isAdminLoggedIn = true;
                     sessionStorage.setItem('adminLoggedIn', 'true');
@@ -1081,4 +1582,3 @@
     </script>
 </body>
 </html>
-
